@@ -15,6 +15,10 @@ flowchart LR
   E --> F[Independent QA<br/>clinical review]
 ```
 
+The representative example below follows the same case through the complete pipeline. The top row compares axial dose distributions; the bottom row shows the corresponding DVHs and clinical-goal reference markers.
+
+![Representative original, prediction, dose-mimicking and optimization results with corresponding DVHs](image/Fig9_representative_one_case.png)
+
 ## Repository layout
 
 ```text
@@ -23,6 +27,7 @@ flowchart LR
 03_postprocessing/  evaluation, NPY→RTDOSE and TOW/VDP inference
 04_raystation/      left/right RayStation planning and optimization scripts
 docs/               detailed code analysis
+image/              dose, DVH and optimization figures used in this README
 weights/            parameter-checkpoint download instructions
 ```
 
@@ -72,6 +77,10 @@ For pretrained inference, retain `weights/best_model_weight_stage2.pth` and poin
 
 Run the matching evaluation script in `03_postprocessing` after configuring ground-truth and prediction directories. For RayStation import, configure `03_postprocessing/npy_to_rtdose.py` with the predicted array, a case-matched reference RTDOSE, and output path. Verify the resulting SOP class, UIDs, Frame of Reference, grid dimensions/offsets, orientation, `DoseUnits`, `DoseType`, `DoseSummationType`, and `DoseGridScaling` using a DICOM validator and visual overlay.
 
+The following examples compare reference dose, predicted dose and their voxel-wise difference for left- and right-sided cases at two axial levels. Contours identify the target and relevant organs at risk. Difference maps should be interpreted together with DVH and clinical endpoint evaluation rather than as a standalone acceptance test.
+
+![Reference and predicted dose overlays with voxel-wise difference maps for representative left- and right-sided cases](image/Fig6_prediction_dose_overlay_cases.png)
+
 ### 4. Predict RayStation mimicking parameters
 
 Example for the 3D dose model:
@@ -90,6 +99,12 @@ python 03_postprocessing/5.HD-3D-unet_DVH_LOSS/predict_mimicking_parameters.py \
 
 The main output, `final_prediction.csv`, contains one row per case with `TOW` (Target:OAR weight ratio) and `VDP` (voxel dose priority). Confirm filename matching in `inference_details.csv`; failed cases appear in `missing_matches.csv`. These values are model recommendations, not automatically safe RayStation settings.
 
+The two outputs correspond to the fields in RayStation's dose-mimicking dialog:
+
+<p align="center">
+  <img src="image/ray_station_mimicking_parameter.png" alt="RayStation dose-mimicking dialog showing Target versus OAR weight ratio and voxel dose priority" width="463">
+</p>
+
 ### 5. Use the result in RayStation
 
 1. Work on a non-clinical/test database and import the case-matched predicted RTDOSE.
@@ -100,6 +115,31 @@ The main output, `final_prediction.csv`, contains one row per case with `TOW` (T
 6. Recalculate dose with the commissioned algorithm and complete independent patient-specific QA and clinical approval.
 
 Site-specific prerequisites and script order are detailed in [`04_raystation/README.md`](04_raystation/README.md); code behavior is documented in [`docs/CODE_GUIDE.md`](docs/CODE_GUIDE.md).
+
+## Cohort-level endpoint visualization
+
+The box plots summarize six planning endpoints across four stages: original clinical dose, neural-network prediction, RayStation mimicking and final optimization. Dashed lines denote the displayed clinical criteria. They are descriptive study results and do not establish acceptance criteria for another institution or cohort.
+
+<details>
+<summary><strong>2D model results</strong></summary>
+
+![Box plots of target coverage and OAR endpoints for the 2D workflow](image/Fig5_optimization_value_box_2D.png)
+
+</details>
+
+<details>
+<summary><strong>2.5D model results</strong></summary>
+
+![Box plots of target coverage and OAR endpoints for the 2.5D workflow](image/Fig5_optimization_value_box_2_5D.png)
+
+</details>
+
+<details>
+<summary><strong>3D model results</strong></summary>
+
+![Box plots of target coverage and OAR endpoints for the 3D workflow](image/Fig5_optimization_value_box_3D.png)
+
+</details>
 
 ## Known limitations
 
