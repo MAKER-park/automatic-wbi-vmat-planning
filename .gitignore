@@ -13,7 +13,9 @@ __pycache__/
 .ipynb_checkpoints/
 .DS_Store
 ._*
+.env
+config.env
+04_raystation/angles.json
 
 # Parameter-regression checkpoints exceed GitHub's 100 MB file limit.
 weights/parameter_models/*.pth
-

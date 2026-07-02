@@ -2,6 +2,8 @@ from connect import *
 import math
 import re
 import datetime
+import os
+import json
 
 
 # === Step 1: CT 설정 및 ROI Type 보정 ===
@@ -15,34 +17,17 @@ type = "2D"
 # plan paremeter
 plan_name = f"LT_{type}_{today}"
 
-ANGLE_TABLE = {
-    "000": {"gantry": {"start": 290, "end": 159}, "colli": {"beam1": 5, "beam2": 354}},
-    "011": {"gantry": {"start": 288, "end": 154}, "colli": {"beam1": 5, "beam2": 354}},
-    "014": {"gantry": {"start": 287, "end": 155}, "colli": {"beam1": 5, "beam2": 354}},
-    "018": {"gantry": {"start": 290, "end": 158}, "colli": {"beam1": 5, "beam2": 354}},
-    "020": {"gantry": {"start": 288, "end": 152}, "colli": {"beam1": 5, "beam2": 354}},
-    "023": {"gantry": {"start": 290, "end": 155}, "colli": {"beam1": 5, "beam2": 354}},
-    "026": {"gantry": {"start": 290, "end": 161}, "colli": {"beam1": 5, "beam2": 354}},
-    "038": {"gantry": {"start": 289, "end": 159}, "colli": {"beam1": 5, "beam2": 354}},
-    "053": {"gantry": {"start": 290, "end": 156}, "colli": {"beam1": 5, "beam2": 354}},
-    "059": {"gantry": {"start": 288, "end": 152}, "colli": {"beam1": 5, "beam2": 354}},
-    "060": {"gantry": {"start": 291, "end": 157}, "colli": {"beam1": 5, "beam2": 354}},
-    "065": {"gantry": {"start": 292, "end": 160}, "colli": {"beam1": 5, "beam2": 354}},
-    "066": {"gantry": {"start": 289, "end": 160}, "colli": {"beam1": 5, "beam2": 354}},
-    "069": {"gantry": {"start": 292, "end": 163}, "colli": {"beam1": 5, "beam2": 354}},
-    "098": {"gantry": {"start": 286, "end": 151}, "colli": {"beam1": 5, "beam2": 354}},
-    "078": {"gantry": {"start": 289, "end": 154}, "colli": {"beam1": 5, "beam2": 354}},
-    "082": {"gantry": {"start": 288, "end": 156}, "colli": {"beam1": 5, "beam2": 354}},
-    "091": {"gantry": {"start": 290, "end": 160}, "colli": {"beam1": 5, "beam2": 354}},
-    "093": {"gantry": {"start": 290, "end": 157}, "colli": {"beam1": 5, "beam2": 354}},
-    "096": {"gantry": {"start": 288, "end": 154}, "colli": {"beam1": 5, "beam2": 354}},
-}
+ANGLE_CONFIG_PATH = os.environ.get("WBI_ANGLE_CONFIG", "")
+if not ANGLE_CONFIG_PATH:
+    raise RuntimeError("Set WBI_ANGLE_CONFIG to an approved local angles JSON file.")
+with open(ANGLE_CONFIG_PATH, "r", encoding="utf-8") as angle_file:
+    ANGLE_TABLE = json.load(angle_file).get("LT", {})
 
 
 def extract_wl_number(patient, case): # patient_number 비교를 위한 추출 함수
     for s in [getattr(patient, "PatientID", ""), getattr(patient, "Name", ""),
               getattr(case, "CaseName", ""), getattr(case, "CaseDescription", "")]:
-        if not s: 
+        if not s:
             continue
         m = re.search(r"(\d+)\s*WL", s, flags=re.IGNORECASE)
         if m: return int(m.group(1))
@@ -50,7 +35,7 @@ def extract_wl_number(patient, case): # patient_number 비교를 위한 추출 �
 
 
 with CompositeAction('Apply image set properties'):
-    examination.EquipmentInfo.SetImagingSystemReference(ImagingSystemName="Canon_EXLB_2022")
+    examination.EquipmentInfo.SetImagingSystemReference(ImagingSystemName=os.environ.get("WBI_RAYSTATION_IMAGING_SYSTEM", "YOUR_IMAGING_SYSTEM"))
 
 # ROI 이름이 "Couch_Lat"인 경우 삭제
 roi_names = [roi.Name for roi in case.PatientModel.RegionsOfInterest]
@@ -60,14 +45,14 @@ if "Couch_Lat" in roi_names:
         print('"Couch_Lat" ROI가 삭제되었습니다.')
 else:
     print('"Couch_Lat" ROI가 존재하지 않습니다.')
-    
+
 if "CD_CTV" in roi_names:
     with CompositeAction('Delete ROI CD_CTV'):
         case.PatientModel.RegionsOfInterest["CD_CTV"].DeleteRoi()
         print('"CD_CTV" ROI가 삭제되었습니다.')
 else:
     print('"CD_CTV" ROI가 존재하지 않습니다.')
-    
+
 
 # ROI Type이 CTV로 설정되었는지 확인 및 설정
 for roi_name in ["CTV_WB"]:
@@ -103,7 +88,7 @@ if existing_plan:
 # 새로운 Plan 생성
 with CompositeAction('Add treatment plan'):
     retval_0 = case.AddNewPlan(PlanName=plan_name, PlannedBy="", Comment="", ExaminationName=examination.Name, IsMedicalOncologyPlan=False, AllowDuplicateNames=False)
-    retval_1 = retval_0.AddNewBeamSet(Name=plan_name, ExaminationName=examination.Name, MachineName="ELT33V", Modality="Photons", TreatmentTechnique="VMAT", PatientPosition="HeadFirstSupine",
+    retval_1 = retval_0.AddNewBeamSet(Name=plan_name, ExaminationName=examination.Name, MachineName=os.environ.get("WBI_RAYSTATION_MACHINE", "YOUR_COMMISSIONED_MACHINE"), Modality="Photons", TreatmentTechnique="VMAT", PatientPosition="HeadFirstSupine",
                                       NumberOfFractions=5, CreateSetupBeams=True, UseLocalizationPointAsSetupIsocenter=False, UseUserSelectedIsocenterSetupIsocenter=False, Comment="")
 
 print('done - plan created')
@@ -175,9 +160,9 @@ print(f"[INFO] POI '{ISO_POI_NAME}' created at x={iso_x:.2f}, y={iso_y:.2f}, z={
 # case = get_current("Case")
 # beam_set = get_current("BeamSet") # beam 정보 이건 불확실함
 
-beam_set = next((bs for plan in case.TreatmentPlans 
-                 if plan.Name == plan_name 
-                 for bs in plan.BeamSets 
+beam_set = next((bs for plan in case.TreatmentPlans
+                 if plan.Name == plan_name
+                 for bs in plan.BeamSets
                  if bs.DicomPlanLabel == plan_name), None)
 
 
@@ -245,5 +230,5 @@ with CompositeAction('Add beam (arc2_LT, beam set: LT_FB_2D_ang)'):
     )
     b2.SetBolus(BolusName="")
 
-  
+
 print("done")

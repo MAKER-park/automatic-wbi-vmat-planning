@@ -61,12 +61,13 @@ CACHE_SIZE = 100 # LRU 캐시의 최대 크기
 # ------ 2.5D 관련 설정 ------
 slice_window = 5 # 중심 슬라이스를 기준으로 앞뒤로 2장씩(총 5장)
 
-train_ct_contour_dir = '../final_dataset/Train/CT_and_Contour'
-train_dose_dir = '../final_dataset/Train/Dose'
+data_root = os.environ.get("WBI_DATA_ROOT", "./data")
+train_ct_contour_dir = os.path.join(data_root, "Train", "CT_and_Contour")
+train_dose_dir = os.path.join(data_root, "Train", "Dose")
 # ✅ Test 경로 완전히 삭제됨
 
 save_file = './Model_Weight_2D_SimAM/best_model_weight.pth'
-save_check_file = 'epoch_image'
+save_check_file = os.path.join(os.environ.get("WBI_OUTPUT_ROOT", "./outputs"), "epoch_image")
 grad_cam_name = 'gradcam'
 
 

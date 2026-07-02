@@ -45,6 +45,8 @@ pip install -r requirements.txt
 
 Download the parameter checkpoints described in [`weights/README.md`](weights/README.md) from the [`model-weights` Release](https://github.com/MAKER-park/automatic-wbi-vmat-planning/releases/tag/model-weights). Clinical DICOM and derived arrays are intentionally not distributed.
 
+Before running any script, configure paths and privacy settings from [`config.example.env`](config.example.env). The complete variable reference and DICOM privacy limitations are documented in [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md). Never commit the resulting local configuration.
+
 ## End-to-end use
 
 ### 1. Prepare data

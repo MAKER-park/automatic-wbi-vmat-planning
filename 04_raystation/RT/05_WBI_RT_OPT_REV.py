@@ -5,6 +5,7 @@ import time
 import math
 import threading
 import os
+import hashlib
 import System
 import json
 import traceback
@@ -25,6 +26,14 @@ logging.basicConfig(
 # 현재 세션의 객체 가져오기
 now = datetime.datetime.now()
 today = now.strftime('%y%m%d')
+
+RAYSTATION_ANONYMIZE = os.environ.get("WBI_RAYSTATION_ANONYMIZE", "true").lower() in ("1", "true", "yes")
+LOG_PATIENT_IDENTIFIERS = os.environ.get("WBI_LOG_PATIENT_IDENTIFIERS", "false").lower() in ("1", "true", "yes")
+CLINICAL_GOAL_TEMPLATE = os.environ.get("WBI_CLINICAL_GOAL_TEMPLATE", "YOUR_CLINICAL_GOAL_TEMPLATE")
+
+def safe_case_label(patient):
+    source = str(getattr(patient, "PatientID", "unknown"))
+    return "case_" + hashlib.sha256(source.encode("utf-8")).hexdigest()[:12]
 case = get_current("Case")
 examination = get_current("Examination")
 patient = get_current("Patient")
@@ -78,7 +87,7 @@ def export_dicom():
     beam_set    = get_current("BeamSet")
     patient     = get_current("Patient")
     # =====================================================================
-    patient_folder_name = patient.Name  # 폴더 이름 = 환자 이름
+    patient_folder_name = safe_case_label(patient)
     print(patient_folder_name) # 0nn patient_number
     model_DOSE_name = case.TreatmentPlans[4].Name + "_RTDOSE" # 3번째 항목 이름  LT_FB_{model_name}_OP_RTDOSE
     model_PLAN_name = case.TreatmentPlans[4].Name + "_RTPLAN" # 3번째 항목 이름  LT_FB_{model_name}_OP_RTPLAN
@@ -98,9 +107,9 @@ def export_dicom():
     # Default AnonymizationSettings 불러와서, 익명화 기본값(Anonymize=True) 설정
     default_anonymization_options = clinic_db.GetSiteSettings().DicomSettings.DefaultAnonymizationOptions
     anonymization_settings = {
-        "Anonymize": True,
-        "AnonymizedName": "anonymizedName",
-        "AnonymizedID": "anonymizedID",
+        "Anonymize": RAYSTATION_ANONYMIZE,
+        "AnonymizedName": patient_folder_name,
+        "AnonymizedID": patient_folder_name,
         "RetainDates": default_anonymization_options.RetainLongitudinalTemporalInformationFullDatesOption,
         "RetainDeviceIdentity": default_anonymization_options.RetainDeviceIdentityOption,
         "RetainInstitutionIdentity": default_anonymization_options.RetainInstitutionIdentityOption,
@@ -138,7 +147,7 @@ def export_dicom():
         LogCompleted(result)
 
     print("OPT PLAN DICOM EXPORT")
-    
+
     try:
         # 1차 Export 시도 (IgnorePreConditionWarnings=False)
         result = case.ScriptableDicomExport(
@@ -191,15 +200,15 @@ def debug_goal_attributes_complete(plan):
         if not goals:
             print("Goals를 찾을 수 없습니다.")
             return
-            
+
         goal = goals[0]
         print("="*50)
         print("GOAL 객체 완전 분석")
         print("="*50)
-        
+
         print(f"Goal 타입: {type(goal)}")
         print(f"ROI 이름: {goal.ForRegionOfInterest.Name}")
-        
+
         print("\n--- Goal 객체의 모든 속성 ---")
         goal_attrs = [attr for attr in dir(goal) if not attr.startswith('_')]
         for attr in goal_attrs:
@@ -209,12 +218,12 @@ def debug_goal_attributes_complete(plan):
                     print(f"goal.{attr}: {value} (타입: {type(value)})")
             except:
                 print(f"goal.{attr}: 접근 불가")
-        
+
         if hasattr(goal, "PlanningGoal"):
             print("\n--- PlanningGoal 객체의 모든 속성 ---")
             pg = goal.PlanningGoal
             print(f"PlanningGoal 타입: {type(pg)}")
-            
+
             pg_attrs = [attr for attr in dir(pg) if not attr.startswith('_')]
             for attr in pg_attrs:
                 try:
@@ -223,14 +232,14 @@ def debug_goal_attributes_complete(plan):
                         print(f"PlanningGoal.{attr}: {value} (타입: {type(value)})")
                 except:
                     print(f"PlanningGoal.{attr}: 접근 불가")
-        
+
         print("\n--- 현재값 확인 ---")
         try:
             current_val = goal.GetClinicalGoalValue()
             print(f"GetClinicalGoalValue(): {current_val}")
         except Exception as e:
             print(f"GetClinicalGoalValue() 오류: {e}")
-                
+
     except Exception as e:
         print(f"디버깅 중 오류: {str(e)}")
 
@@ -242,29 +251,29 @@ def debug_all_goals_brief(plan):
         if not goals:
             print("Goals를 찾을 수 없습니다.")
             return
-            
+
         print("\n" + "="*80)
         print(f"총 {len(goals)}개의 Clinical Goals 발견")
         print("="*80)
-        
+
         for i, goal in enumerate(goals):
             try:
                 roi_name = "Unknown"
                 if hasattr(goal, "ForRegionOfInterest") and goal.ForRegionOfInterest:
                     roi_name = goal.ForRegionOfInterest.Name
-                
+
                 planning_goal = goal.PlanningGoal if hasattr(goal, "PlanningGoal") else goal
                 goal_type = getattr(planning_goal, "Type", "Unknown")
                 goal_criteria = getattr(planning_goal, "GoalCriteria", "Unknown")
                 acceptance_level = getattr(planning_goal, "PrimaryAcceptanceLevel", 0)
                 parameter_value = getattr(planning_goal, "ParameterValue", None)
-                
+
                 current_value = None
                 try:
                     current_value = goal.GetClinicalGoalValue()
                 except:
                     pass
-                
+
                 is_met = None
                 if current_value is not None and acceptance_level > 0:
                     try:
@@ -274,11 +283,11 @@ def debug_all_goals_brief(plan):
                             is_met = current_value >= acceptance_level
                     except:
                         pass
-                
+
                 status_str = ""
                 if is_met is not None:
                     status_str = "✓ 달성" if is_met else "✗ 미달성"
-                
+
                 print(f"\nGoal {i+1}: {roi_name}")
                 print(f"  Type: {goal_type}")
                 print(f"  Criteria: {goal_criteria}")
@@ -289,12 +298,12 @@ def debug_all_goals_brief(plan):
                     print(f"  Current: {current_value:.2f}")
                 if status_str:
                     print(f"  Status: {status_str}")
-                    
+
             except Exception as e:
                 print(f"\nGoal {i+1}: 오류 - {str(e)}")
-        
+
         print("="*80 + "\n")
-                
+
     except Exception as e:
         print(f"디버깅 중 오류: {str(e)}")
 
@@ -305,26 +314,26 @@ def debug_goals_status(plan, selected_goals):
         print("\n" + "="*80)
         print("목표 달성 상태 디버깅")
         print("="*80)
-        
+
         met_count = 0
         total_count = len(selected_goals)
-        
+
         for i, goal in enumerate(selected_goals):
             try:
                 roi_name = "Unknown"
                 if hasattr(goal, "ForRegionOfInterest") and goal.ForRegionOfInterest:
                     roi_name = goal.ForRegionOfInterest.Name
-                
+
                 planning_goal = goal.PlanningGoal if hasattr(goal, "PlanningGoal") else goal
                 goal_criteria = getattr(planning_goal, "GoalCriteria", "Unknown")
                 acceptance_level = getattr(planning_goal, "PrimaryAcceptanceLevel", 0)
-                
+
                 current_value = None
                 try:
                     current_value = goal.GetClinicalGoalValue()
                 except:
                     pass
-                
+
                 is_met = False
                 if current_value is not None and acceptance_level > 0:
                     try:
@@ -334,19 +343,19 @@ def debug_goals_status(plan, selected_goals):
                             is_met = current_value >= acceptance_level
                     except:
                         pass
-                
+
                 if is_met:
                     met_count += 1
-                
+
                 status_symbol = "✓" if is_met else "✗"
                 print(f"{status_symbol} Goal {i+1}: {roi_name} - Current: {current_value:.2f} vs Target: {acceptance_level:.2f} ({goal_criteria})")
-                
+
             except Exception as e:
                 print(f"✗ Goal {i+1}: 오류 - {str(e)}")
-        
+
         print(f"\n총 달성: {met_count}/{total_count}")
         print("="*80 + "\n")
-        
+
     except Exception as e:
         print(f"디버깅 중 오류: {str(e)}")
 
@@ -486,12 +495,12 @@ class OptimizationStatusGUI:
                 roi_name = "Unknown"
 
             planning_goal = goal.PlanningGoal if hasattr(goal, "PlanningGoal") else goal
-            
+
             goal_type = getattr(planning_goal, "Type", "Unknown")
             goal_criteria = getattr(planning_goal, "GoalCriteria", "Unknown")
             parameter_value = getattr(planning_goal, "ParameterValue", None)
             acceptance_level = getattr(planning_goal, "PrimaryAcceptanceLevel", 0)
-            
+
             current_value = None
             try:
                 current_value = goal.GetClinicalGoalValue()
@@ -511,7 +520,7 @@ class OptimizationStatusGUI:
                     is_met = None
 
             text = f"{roi_name} - {goal_type} - {goal_criteria} {acceptance_level:.1f}"
-            
+
             if goal_type == "DoseAtVolume":
                 text += f" cGy (Vol: {parameter_value:.2f}%)" if parameter_value is not None else " cGy"
             elif goal_type == "VolumeAtDose":
@@ -546,7 +555,7 @@ class OptimizationStatusGUI:
         for i, goal in enumerate(selected_goals):
             try:
                 goal_text, is_met = self.format_goal_text(goal)
-                
+
                 if is_met is None:
                     bg_color = "white"
                 elif is_met:
@@ -589,7 +598,7 @@ class OptimizationStatusGUI:
             for i, (label, goal) in enumerate(zip(self.goal_labels, self.goal_list)):
                 try:
                     goal_text, is_met = self.format_goal_text(goal)
-                    
+
                     if is_met is None:
                         bg_color = "white"
                     elif is_met:
@@ -657,18 +666,18 @@ class OptimizationStatusGUI:
         """창 크기를 내용에 맞게 자동 조정하고 중앙에 배치"""
         try:
             self.root.update_idletasks()
-            
+
             req_width = self.root.winfo_reqwidth()
             req_height = self.root.winfo_reqheight()
-            
+
             width = max(600, min(req_width, 800))
             height = max(400, min(req_height, 900))
-            
+
             screen_width = self.root.winfo_screenwidth()
             screen_height = self.root.winfo_screenheight()
             x = (screen_width - width) // 2
             y = (screen_height - height) // 2
-            
+
             self.root.geometry(f"{width}x{height}+{x}+{y}")
         except Exception as e:
             logging.error(f"auto_resize_and_center 오류: {str(e)}")
@@ -767,7 +776,7 @@ def setup_prescription(plan):
         return True  # 수동 설정 후 계속 진행
 
 
-def load_clinical_goals_from_template(plan, template_name="b_dm_g"):
+def load_clinical_goals_from_template(plan, template_name=CLINICAL_GOAL_TEMPLATE):
     """
     Clinical Goal template을 안전하게 불러와서 적용
 
@@ -1231,7 +1240,7 @@ def load_clinical_goals_safe(plan):
     try:
         evaluation_functions = plan.TreatmentCourse.EvaluationSetup.EvaluationFunctions
         goals = []
-        
+
         for func in evaluation_functions:
             try:
                 if hasattr(func, 'PlanningGoal') or hasattr(func, 'ForRegionOfInterest'):
@@ -1239,10 +1248,10 @@ def load_clinical_goals_safe(plan):
             except Exception as e:
                 logging.debug(f"Goal 추가 중 오류 (무시): {str(e)}")
                 continue
-        
+
         logging.info(f"총 {len(goals)}개의 Clinical Goals를 안전하게 로드함")
         return goals
-        
+
     except Exception as e:
         logging.error(f"Clinical Goals 로드 실패: {str(e)}")
         return []
@@ -1261,19 +1270,19 @@ def check_selected_goals(plan, selected_goals):
     try:
         all_met = True
         met_count = 0
-        
+
         for goal in selected_goals:
             try:
                 planning_goal = goal.PlanningGoal if hasattr(goal, "PlanningGoal") else goal
                 goal_criteria = getattr(planning_goal, "GoalCriteria", "Unknown")
                 acceptance_level = getattr(planning_goal, "PrimaryAcceptanceLevel", 0)
-                
+
                 current_value = None
                 try:
                     current_value = goal.GetClinicalGoalValue()
                 except:
                     pass
-                
+
                 is_met = False
                 if current_value is not None and acceptance_level > 0:
                     try:
@@ -1283,19 +1292,19 @@ def check_selected_goals(plan, selected_goals):
                             is_met = current_value >= acceptance_level
                     except:
                         pass
-                
+
                 if is_met:
                     met_count += 1
                 else:
                     all_met = False
-                    
+
             except Exception as e:
                 logging.debug(f"Goal 체크 중 오류 (무시): {str(e)}")
                 all_met = False
-        
+
         logging.info(f"목표 달성 현황: {met_count}/{len(selected_goals)}")
         return all_met, met_count
-        
+
     except Exception as e:
         logging.error(f"check_selected_goals 오류: {str(e)}")
         return False, 0
@@ -1916,27 +1925,27 @@ def run_scaling_optimization(plan, beam_set, selected_goals, status_gui):
     """스케일링 최적화 실행"""
     try:
         logging.info("=== 스케일링 최적화 시작 ===")
-        
+
         target_d95 = 2471
         max_dose_limit = 2600
         lower_limit = 2460
-        
+
         scale_factor = 1.0
         iteration = 0
         max_iterations = 20
-        
+
         while iteration < max_iterations:
             iteration += 1
 
             # Total Dose로 가져오기
             current_d95 = get_ctv_wb_d95_total(beam_set)
             current_max = get_ctv_wb_max_dose(plan)
-            
+
             logging.info(f"스케일링 반복 {iteration}: D95={current_d95:.1f}, Max={current_max:.1f}, Factor={scale_factor:.4f}")
-            
+
             if target_d95 - 5 <= current_d95 <= target_d95 + 5 and current_max < max_dose_limit:
                 logging.info(f"스케일링 목표 달성! D95={current_d95:.1f}, Max={current_max:.1f}")
-                
+
                 if status_gui:
                     met_count = check_selected_goals(plan, selected_goals)[1]
                     status_gui.update_status(
@@ -1945,12 +1954,12 @@ def run_scaling_optimization(plan, beam_set, selected_goals, status_gui):
                         current_max,
                         f"스케일링 완료 (반복 {iteration}회)"
                     )
-                
+
                 return True, current_max, current_d95
-            
+
             if current_d95 < lower_limit:
                 logging.warning(f"D95가 하방 제한({lower_limit}cGy)에 도달했습니다. 스케일링 중단.")
-                
+
                 if status_gui:
                     met_count = check_selected_goals(plan, selected_goals)[1]
                     status_gui.update_status(
@@ -1959,14 +1968,14 @@ def run_scaling_optimization(plan, beam_set, selected_goals, status_gui):
                         current_max,
                         f"스케일링 한계 도달 (D95={current_d95:.1f})"
                     )
-                
+
                 return False, current_max, current_d95
-            
+
             if current_d95 < target_d95:
                 scale_factor *= (target_d95 / current_d95)
             else:
                 scale_factor *= 0.99
-            
+
             beam_set.NormalizeToPrescription(
                 RoiName="CTV_WB",
                 DoseValue=target_d95 * scale_factor,
@@ -1975,7 +1984,7 @@ def run_scaling_optimization(plan, beam_set, selected_goals, status_gui):
                 LockedBeamNames=None,
                 EvaluateAfterScaling=True
             )
-            
+
             if status_gui:
                 met_count = check_selected_goals(plan, selected_goals)[1]
                 status_gui.update_status(
@@ -1984,7 +1993,7 @@ def run_scaling_optimization(plan, beam_set, selected_goals, status_gui):
                     current_max,
                     f"스케일링 중 ({iteration}/{max_iterations})"
                 )
-        
+
         logging.warning("스케일링 최대 반복 횟수 도달")
 
         # Total Dose로 가져오기
@@ -1992,7 +2001,7 @@ def run_scaling_optimization(plan, beam_set, selected_goals, status_gui):
         final_max = get_ctv_wb_max_dose(plan)
 
         return False, final_max, final_d95
-        
+
     except Exception as e:
         logging.error(f"스케일링 최적화 중 오류: {str(e)}")
         return False, 0, 0
@@ -3028,10 +3037,10 @@ def main():
 
         patient = get_current("Patient")
         patient_id = patient.PatientID
-        
+
         logging.info(f"=== 환자 정보 ===")
-        logging.info(f"Patient ID: {patient_id}")
-        logging.info(f"Patient Name: {patient.Name}")
+        logging.info(f"Patient ID: {patient_id}") if LOG_PATIENT_IDENTIFIERS else logging.info("Patient identifiers suppressed")
+        logging.info(f"Patient Name: {patient.Name}") if LOG_PATIENT_IDENTIFIERS else None
         logging.info(f"Plan Name: {plan.Name}")
 
         if not setup_prescription(plan):
@@ -3042,7 +3051,7 @@ def main():
         logging.info("Step 1: Clinical Goals Template 로딩")
         logging.info("="*60)
 
-        if not load_clinical_goals_from_template(plan, template_name="b_dm_g"):
+        if not load_clinical_goals_from_template(plan, template_name=CLINICAL_GOAL_TEMPLATE):
             logging.error("Clinical Goals template 로딩 실패")
             messagebox.showerror("오류", "Clinical Goals template 'b_dm_g'를 찾을 수 없습니다.")
             return
@@ -3116,8 +3125,8 @@ def main():
             logging.warning(f"색상 맵 설정 중 오류 (계속 진행): {str(e)}")
 
         patient_info = {
-            "patient_name": patient.Name if hasattr(patient, 'Name') else "",
-            "patient_id": patient.PatientID if hasattr(patient, 'PatientID') else "",
+            "patient_name": patient.Name if LOG_PATIENT_IDENTIFIERS and hasattr(patient, 'Name') else "",
+            "patient_id": patient.PatientID if LOG_PATIENT_IDENTIFIERS and hasattr(patient, 'PatientID') else "",
             "plan_name": plan.Name if hasattr(plan, 'Name') else "",
         }
 

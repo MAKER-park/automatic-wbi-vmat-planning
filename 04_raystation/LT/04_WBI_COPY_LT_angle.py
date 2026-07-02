@@ -4,6 +4,7 @@ import time
 import math
 import threading
 import os
+import hashlib
 import json
 import datetime
 import re
@@ -17,6 +18,13 @@ import numpy as np  # numpy 사용
 
 now = datetime.datetime.now()
 today = now.strftime('%y%m%d')
+
+RAYSTATION_ANONYMIZE = os.environ.get("WBI_RAYSTATION_ANONYMIZE", "true").lower() in ("1", "true", "yes")
+LOG_PATIENT_IDENTIFIERS = os.environ.get("WBI_LOG_PATIENT_IDENTIFIERS", "false").lower() in ("1", "true", "yes")
+
+def safe_case_label(patient):
+    source = str(getattr(patient, "PatientID", "unknown"))
+    return "case_" + hashlib.sha256(source.encode("utf-8")).hexdigest()[:12]
 ab_path = os.path.join(os.environ.get("WBI_EXPORT_ROOT", r"C:\WBI_exports"), today, "LT")
 
 # Export할 폴더(공유 경로) 지정
@@ -62,7 +70,7 @@ def export_dicom():
     beam_set    = get_current("BeamSet")
     patient     = get_current("Patient")
     # =====================================================================
-    patient_folder_name = patient.Name  # 폴더 이름 = 환자 이름
+    patient_folder_name = safe_case_label(patient)
     print(patient_folder_name) # 0nn patient_number
     model_name = case.TreatmentPlans[3].Name + "_M_RTDOSE" # 3번째 항목 이름  LT_FB_{model_name}_OP
     path = os.path.join(ab_path, patient_folder_name, model_name)
@@ -77,9 +85,9 @@ def export_dicom():
     # Default AnonymizationSettings 불러와서, 익명화 기본값(Anonymize=True) 설정
     default_anonymization_options = clinic_db.GetSiteSettings().DicomSettings.DefaultAnonymizationOptions
     anonymization_settings = {
-        "Anonymize": True,
-        "AnonymizedName": "anonymizedName",
-        "AnonymizedID": "anonymizedID",
+        "Anonymize": RAYSTATION_ANONYMIZE,
+        "AnonymizedName": patient_folder_name,
+        "AnonymizedID": patient_folder_name,
         "RetainDates": default_anonymization_options.RetainLongitudinalTemporalInformationFullDatesOption,
         "RetainDeviceIdentity": default_anonymization_options.RetainDeviceIdentityOption,
         "RetainInstitutionIdentity": default_anonymization_options.RetainInstitutionIdentityOption,

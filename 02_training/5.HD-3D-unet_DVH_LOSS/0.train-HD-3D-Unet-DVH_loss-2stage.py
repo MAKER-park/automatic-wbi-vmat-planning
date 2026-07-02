@@ -219,11 +219,12 @@ clip_max = 800
 prescription_dose = 26.00
 target_dose = prescription_dose * 1.1
 
-train_ct_contour_dir = '../final_dataset/Train/CT_and_Contour'
-train_dose_dir = '../final_dataset/Train/Dose'
+data_root = os.environ.get("WBI_DATA_ROOT", "./data")
+train_ct_contour_dir = os.path.join(data_root, "Train", "CT_and_Contour")
+train_dose_dir = os.path.join(data_root, "Train", "Dose")
 save_file = './Model_Weight_HD_3D_UNet/best_model_weight_stage2.pth'
 stage_1_pth = './Model_Weight_HD_3D_UNet/best_model_weight_stage1.pth'
-save_check_file = 'epoch_image_3d_stage2'
+save_check_file = os.path.join(os.environ.get("WBI_OUTPUT_ROOT", "./outputs"), "epoch_image_3d_stage2")
 
 # ------------------------------
 #   Dataset (True 3D Patch-based)

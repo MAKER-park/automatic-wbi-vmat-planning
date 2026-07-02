@@ -1,4 +1,5 @@
 import os
+import hashlib
 import glob
 import re
 import time
@@ -14,13 +15,24 @@ from pydicom.dataset import FileMetaDataset
 # =========================
 # 기본 설정
 # =========================
-pred_npy_dir = "./prediction_2D_npy"  # 예측 NPY가 들어있는 상위 경로
-dicom_input_root = "/media/park/WD8/2026/1.interpolation/WBI_TOTAL"  # 원본 DICOM(root)
-dicom_output_path = "DICOM_OUTPUT"
+pred_npy_dir = os.environ.get("WBI_PREDICTION_ROOT", os.path.join(os.environ.get("WBI_OUTPUT_ROOT", "./outputs"), "./prediction_2D_npy"))
+dicom_input_root = os.environ.get("WBI_DICOM_INPUT_ROOT", "./data/dicom")
+dicom_output_path = os.environ.get("WBI_DICOM_OUTPUT_ROOT", "./outputs/dicom")
 
 prescription_dose = 26.00
 target_value = prescription_dose * 1.1  # 네트워크 예측 → 실제 Gy 로 스케일링할 때 사용
 noise_threshold_ratio = 0.025  # max dose 의 2.5% 미만은 0으로 컷
+
+ANONYMIZE_DICOM = os.environ.get("WBI_ANONYMIZE_DICOM", "true").lower() in ("1", "true", "yes")
+COPY_SOURCE_DICOM = os.environ.get("WBI_COPY_SOURCE_DICOM", "false").lower() in ("1", "true", "yes")
+ANONYMIZED_NAME = os.environ.get("WBI_ANONYMIZED_NAME", "ANONYMOUS")
+
+def anonymized_patient_id(ct_ds):
+    configured = os.environ.get("WBI_ANONYMIZED_ID", "").strip()
+    if configured:
+        return configured
+    source = str(getattr(ct_ds, "PatientID", "unknown"))
+    return "ANON_" + hashlib.sha256(source.encode("utf-8")).hexdigest()[:12]
 
 # =========================
 # 유틸 함수들
@@ -295,13 +307,13 @@ def create_rtdose_dataset(ct_ds: pydicom.Dataset,
 
     # ── 기본 DICOM 헤더 설정 ─────────────────
     ds = pydicom.Dataset()
-    ds.PatientName = getattr(ct_ds, "PatientName", "")
-    ds.PatientID = getattr(ct_ds, "PatientID", "")
+    ds.PatientName = ANONYMIZED_NAME if ANONYMIZE_DICOM else getattr(ct_ds, "PatientName", "")
+    ds.PatientID = anonymized_patient_id(ct_ds) if ANONYMIZE_DICOM else getattr(ct_ds, "PatientID", "")
     ds.StudyInstanceUID = getattr(ct_ds, "StudyInstanceUID", generate_uid())
     ds.FrameOfReferenceUID = getattr(ct_ds, "FrameOfReferenceUID", generate_uid())
     ds.Modality = "RTDOSE"
-    ds.StudyDate = getattr(ct_ds, "StudyDate", "")
-    ds.StudyTime = getattr(ct_ds, "StudyTime", "")
+    ds.StudyDate = "" if ANONYMIZE_DICOM else getattr(ct_ds, "StudyDate", "")
+    ds.StudyTime = "" if ANONYMIZE_DICOM else getattr(ct_ds, "StudyTime", "")
     ds.SeriesInstanceUID = generate_uid()
     ds.SOPInstanceUID = generate_uid()
     ds.SOPClassUID = RTDoseStorage
@@ -453,11 +465,13 @@ def main():
                 continue
 
             # 3-1) 원본 DICOM 복사 (CT/RTST/RTDOSE)
-            copy_original_dicoms_for_patient(model_type, patient_id, patient_dicoms, dicom_output_path)
+            if COPY_SOURCE_DICOM:
+                copy_original_dicoms_for_patient(model_type, patient_id, patient_dicoms, dicom_output_path)
 
             # 3-2) CT reference DICOM 로드
             ct_folder = patient_dicoms[patient_id]["CT"]
             ct_ds = load_ct_reference_dicom(ct_folder)
+            output_patient_id = anonymized_patient_id(ct_ds) if ANONYMIZE_DICOM else patient_id
 
             # 3-3) 이 환자에 대해 첫 번째 NPY만 사용 (여러 개면 경고 출력)
             npy_list_sorted = sorted(npy_list)
@@ -469,7 +483,7 @@ def main():
             # 3-4) NPY → RTDOSE
             elapsed, num_frames, out_path = convert_single_prediction(
                 model_type=model_type,
-                patient_id=patient_id,
+                patient_id=output_patient_id,
                 npy_path=npy_path,
                 ct_ds=ct_ds,
                 dicom_output_root=dicom_output_path,
@@ -479,7 +493,7 @@ def main():
             conversion_records.append(
                 {
                     "model_type": model_type,
-                    "patient_id": patient_id,
+                    "patient_id": output_patient_id,
                     "npy_file": os.path.basename(npy_path),
                     "num_frames": num_frames,
                     "elapsed_sec": elapsed,
@@ -494,7 +508,7 @@ def main():
         print(df.head())
 
         # ---- (1) 전체 raw 기록 저장 ----
-        time_csv = "time_summary.csv"
+        time_csv = os.path.join(dicom_output_path, "time_summary.csv")
         df.to_csv(time_csv, index=False)
         print(f"\n[INFO] 변환 로그 CSV 저장 완료: {time_csv}")
 
@@ -503,7 +517,7 @@ def main():
         print("\n[모델별 변환 시간 통계 (초)]")
         print(stats_by_model)
 
-        stats_by_model.to_csv("time_stats_by_model.csv")
+        stats_by_model.to_csv(os.path.join(dicom_output_path, "time_stats_by_model.csv"))
         print("[INFO] 모델별 통계 CSV 저장 완료: time_stats_by_model.csv")
 
         # ---- (3) 환자별 평균 시간 저장 ----
@@ -516,7 +530,7 @@ def main():
         print("\n[환자별 평균 변환 시간 (초)]")
         print(stats_by_patient.sort_values("mean_elapsed_sec"))
 
-        stats_by_patient.to_csv("time_stats_by_patient.csv", index=False)
+        stats_by_patient.to_csv(os.path.join(dicom_output_path, "time_stats_by_patient.csv"), index=False)
         print("[INFO] 환자별 통계 CSV 저장 완료: time_stats_by_patient.csv")
 
     else:

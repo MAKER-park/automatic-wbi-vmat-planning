@@ -240,8 +240,8 @@ def main():
     ############################################################################
     # 3) 추론할 테스트 데이터 디렉토리 & 결과 저장 폴더
     ############################################################################
-    test_ct_contour_dir = "../final_dataset/Test/CT_and_Contour"  # 예: 테스트 세트 폴더
-    output_dir = "prediction_npy_2_5D_unet_SimAM"                  # 예: 예측 결과 저장 폴더
+    test_ct_contour_dir = os.path.join(os.environ.get("WBI_DATA_ROOT", "./data"), "Test", "CT_and_Contour")  # 예: 테스트 세트 폴더
+    output_dir = os.path.join(os.environ.get("WBI_OUTPUT_ROOT", "./outputs"), "prediction_npy_2_5D_unet_SimAM")                  # 예: 예측 결과 저장 폴더
     os.makedirs(output_dir, exist_ok=True)
 
     ############################################################################

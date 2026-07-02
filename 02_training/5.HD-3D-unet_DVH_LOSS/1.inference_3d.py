@@ -24,8 +24,8 @@ infer_full_volume = train_module.infer_full_volume
 
 # --- Configuration ---
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-TEST_CT_DIR = "../final_dataset/Test/CT_and_Contour"
-OUTPUT_DIR = "prediction_npy_3d_hd_unet"
+TEST_CT_DIR = os.path.join(os.environ.get("WBI_DATA_ROOT", "./data"), "Test", "CT_and_Contour")
+OUTPUT_DIR = os.path.join(os.environ.get("WBI_OUTPUT_ROOT", "./outputs"), "prediction_npy_3d_hd_unet")
 MODEL_PATH = "./Model_Weight_HD_3D_UNet/best_model_weight.pth"
 PATCH_SIZE = (32, 256, 256)
 

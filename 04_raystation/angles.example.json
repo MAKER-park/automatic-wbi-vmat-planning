@@ -1,0 +1,15 @@
+{
+  "LT": {
+    "001": {
+      "gantry": {"start": 290, "end": 159},
+      "colli": {"beam1": 5, "beam2": 354}
+    }
+  },
+  "RT": {
+    "001": {
+      "gantry": {"start": 201, "end": 70},
+      "colli": {"beam1": 354, "beam2": 5}
+    }
+  }
+}
+

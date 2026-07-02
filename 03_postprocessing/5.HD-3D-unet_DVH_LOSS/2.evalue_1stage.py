@@ -19,8 +19,8 @@ warnings.filterwarnings("ignore", category=FutureWarning, module='seaborn')
 
 # --- Configuration ---
 # 경로 설정
-PRED_DIR = "prediction_npy_3d_hd_unet_stage1"
-GT_BASE_DIR = "../final_dataset/Test"
+PRED_DIR = os.path.join(os.environ.get("WBI_OUTPUT_ROOT", "./outputs"), "prediction_npy_3d_hd_unet_stage1")
+GT_BASE_DIR = os.path.join(os.environ.get("WBI_DATA_ROOT", "./data"), "Test")
 GT_DOSE_DIR = os.path.join(GT_BASE_DIR, "Dose")
 CT_CONTOUR_DIR = os.path.join(GT_BASE_DIR, "CT_and_Contour")
 VIS_OUTPUT_DIR = "evaluation_visuals_3D_1stage" # 시각화 결과 저장 폴더

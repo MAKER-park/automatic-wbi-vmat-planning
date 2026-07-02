@@ -31,9 +31,9 @@ except Exception as e:
     sys.exit(1)
 
 # --- Configuration ---
-PRED_NPY_DIR = "prediction_npy_3d_hd_unet_stage2"
+PRED_NPY_DIR = os.path.join(os.environ.get("WBI_OUTPUT_ROOT", "./outputs"), "prediction_npy_3d_hd_unet_stage2")
 DICOM_INPUT_ROOT = os.environ.get("WBI_DICOM_INPUT_ROOT", "./data/dicom")
-DICOM_OUTPUT_ROOT = "DICOM_OUTPUT_3D"
+DICOM_OUTPUT_ROOT = os.path.join(os.environ.get("WBI_DICOM_OUTPUT_ROOT", "./outputs/dicom"), "DICOM_OUTPUT_3D")
 PRESCRIPTION_DOSE = 26.0
 TARGET_VALUE = PRESCRIPTION_DOSE * 1.1
 
