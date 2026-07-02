@@ -1,0 +1,19 @@
+data/
+datasets/
+outputs/
+predictions/
+*.dcm
+*.npy
+*.npz
+*.csv
+*.xlsx
+*.pth.back
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.DS_Store
+._*
+
+# Parameter-regression checkpoints exceed GitHub's 100 MB file limit.
+weights/parameter_models/*.pth
+

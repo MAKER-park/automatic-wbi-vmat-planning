@@ -1,0 +1,12 @@
+numpy
+pandas
+scipy
+scikit-image
+matplotlib
+openpyxl
+pydicom
+tqdm
+numba
+torch
+torchvision
+
