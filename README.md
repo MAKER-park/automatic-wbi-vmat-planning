@@ -38,7 +38,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Download the parameter checkpoints described in [`weights/README.md`](weights/README.md). Clinical DICOM and derived arrays are intentionally not distributed.
+Download the parameter checkpoints described in [`weights/README.md`](weights/README.md) from the [`model-weights` Release](https://github.com/MAKER-park/automatic-wbi-vmat-planning/releases/tag/model-weights). Clinical DICOM and derived arrays are intentionally not distributed.
 
 ## End-to-end use
 
