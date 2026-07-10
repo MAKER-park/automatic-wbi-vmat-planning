@@ -118,9 +118,53 @@ The two outputs correspond to the fields in RayStation's dose-mimicking dialog:
 
 Site-specific prerequisites and script order are detailed in [`04_raystation/README.md`](04_raystation/README.md); code behavior is documented in [`docs/CODE_GUIDE.md`](docs/CODE_GUIDE.md).
 
-## Cohort-level endpoint visualization
+## Cohort-level performance visualization
 
-The box plots summarize six planning endpoints across four stages: original clinical dose, neural-network prediction, RayStation mimicking and final optimization. Dashed lines denote the displayed clinical criteria. They are descriptive study results and do not establish acceptance criteria for another institution or cohort.
+The figures below summarize the study-level behavior of the dose-prediction and RayStation dose-mimicking workflow. They should be interpreted as descriptive research results from the evaluated cohort, not as acceptance criteria for another institution, scanner, contouring protocol, RayStation version or patient population.
+
+### Dose-prediction endpoint accuracy
+
+The first endpoint summary compares predicted dose against the original clinical dose for target coverage, high-dose target behavior, OAR dose metrics and total voxel-wise MAE. The results show model-dependent trade-offs: the 2D and 2.5D models show lower total MAE in this cohort, while the 3D model shows a stronger PTV V95 tendency but higher voxel-wise MAE. Because endpoint accuracy and spatial dose similarity do not always move together, model selection should be validated against the intended clinical endpoint set.
+
+![Box plots of dose-prediction endpoint differences across 2D, 2.5D and 3D models](image/Fig1_prediction_box_array.png)
+
+### DVH-guided training effect
+
+For the 2.5D and 3D workflows, DVH-guided training shifts several clinically relevant endpoints compared with the non-DVH-guided baseline. The displayed cohort statistics show significant differences for multiple target and OAR endpoints, including PTV V95, PTV Dmax, Heart V1.5Gy and ipsilateral lung V8Gy. This supports the use of DVH-aware objectives when the downstream planning task depends on clinical dose-volume endpoints rather than only voxel-wise error.
+
+![Box plots comparing dose-prediction endpoint differences with and without DVH-guided training](image/Fig2_dvh_guided_box_array.png)
+
+<details>
+<summary><strong>Representative DVH-guided DVH examples</strong></summary>
+
+The example DVHs show how the DVH-guided model can alter target and OAR curves relative to the non-DVH-guided prediction and original clinical dose. These examples are visual aids; cohort-level endpoint statistics should be used for quantitative interpretation.
+
+![Representative DVH curves comparing original, non-DVH-guided and DVH-guided dose predictions](image/Fig7_dvh_guided_overlay_cases.png)
+
+</details>
+
+### RayStation mimicking-parameter effect
+
+The trained parameter models recommend the two RayStation dose-mimicking inputs, Target:OAR weight ratio (TOW) and voxel dose priority (VDP), from the predicted dose and anatomy channels. Compared with default mimicking settings, the recommended parameters reduce several OAR endpoint deviations in this cohort, especially heart, ipsilateral lung and contralateral lung metrics. The PTV V95 behavior remains a trade-off and must be reviewed with the full clinical-goal set before plan acceptance.
+
+![Box plots comparing default RayStation dose mimicking with predicted-parameter dose mimicking](image/Fig3_mimicking_box_array.png)
+
+The SSIM trend provides a complementary spatial-distribution view. Across isodose thresholds, predicted-parameter mimicking generally tracks the predicted dose more closely than default mimicking, indicating that the parameter recommendation step improves the geometric similarity of the mimicked dose distribution to the neural-network dose prediction.
+
+![SSIM trend comparing default and predicted-parameter RayStation dose mimicking across isodose thresholds](image/Fig4_mimicking_ssim_trend.png)
+
+<details>
+<summary><strong>Representative RayStation mimicking dose-map example</strong></summary>
+
+The dose-map example illustrates the same behavior visually: default mimicking leaves larger local differences from the predicted dose, while the predicted-parameter mimicking result more closely follows the prediction in the displayed axial slice.
+
+![Representative dose maps comparing prediction, default mimicking and predicted-parameter mimicking](image/Fig8_mimicking_dose_map.png)
+
+</details>
+
+### Final optimization endpoint summary
+
+The following box plots summarize six planning endpoints across four stages: original clinical dose, neural-network prediction, RayStation mimicking and final optimization. Dashed lines denote the displayed clinical criteria. These figures are intended to show the complete workflow trajectory from dose prediction through RayStation optimization.
 
 <details>
 <summary><strong>2D model results</strong></summary>
